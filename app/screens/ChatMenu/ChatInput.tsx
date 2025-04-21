@@ -9,7 +9,7 @@ import React, { useState, useRef } from 'react'
 import {
     TextInput, TouchableOpacity, View,
     Pressable, Text, Image, StyleSheet,
-    Alert, PanResponder, findNodeHandle, UIManager
+    Alert, PanResponder
 } from 'react-native'
 import { useMMKVBoolean } from 'react-native-mmkv'
 import { useShallow } from 'zustand/react/shallow'
@@ -29,7 +29,6 @@ const ChatInput = () => {
 
     const drawingRef = useRef();
     const canvasRef = useRef(null);
-    const canvasOffset = useRef({ x: 0, y: 0 });
 
     const styles = StyleSheet.create({
         container: {
@@ -143,6 +142,7 @@ const ChatInput = () => {
             uri,
         }));
         setImages((prev) => [...prev, ...newImages]);
+        Logger.info(uris);
     };
 
     const handleAttachImage = async () => {
@@ -153,7 +153,7 @@ const ChatInput = () => {
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: 'images',
             allowsMultipleSelection: true,
             quality: 0.5,
         });
@@ -171,13 +171,13 @@ const ChatInput = () => {
         PanResponder.create({
             onStartShouldSetPanResponder: () => true,
             onPanResponderGrant: (e) => {
-                const x = e.nativeEvent.pageX - canvasOffset.current.x;
-                const y = e.nativeEvent.pageY - canvasOffset.current.y;
+                const x = e.nativeEvent.locationX;
+                const y = e.nativeEvent.locationY;
                 setPaths((prev) => [...prev, `M ${x} ${y}`]);
             },
             onPanResponderMove: (e) => {
-                const x = e.nativeEvent.pageX - canvasOffset.current.x;
-                const y = e.nativeEvent.pageY - canvasOffset.current.y;
+                const x = e.nativeEvent.locationX;
+                const y = e.nativeEvent.locationY;
                 setPaths((prev) => {
                     const last = prev[prev.length - 1] + ` L ${x} ${y}`;
                     return [...prev.slice(0, -1), last];
@@ -199,14 +199,6 @@ const ChatInput = () => {
             Alert.alert("Error", "Failed to save drawing.");
             console.error(err);
         }
-    };
-
-    const measureCanvas = () => {
-        if (!canvasRef.current) return;
-        const handle = findNodeHandle(canvasRef.current);
-        UIManager.measure(handle, (x, y, width, height, pageX, pageY) => {
-            canvasOffset.current = { x: pageX, y: pageY };
-        });
     };
 
     const { addEntry } = Chats.useEntry()
@@ -278,6 +270,9 @@ const ChatInput = () => {
                     placeholderTextColor={color.text._700}
                     value={newMessage}
                     onChangeText={setNewMessage}
+                    multiline
+                    submitBehavior={sendOnEnter ? 'blurAndSubmit' : 'newline'}
+                    onSubmitEditing={sendOnEnter ? handleSend : undefined}
                 />
                 {nowGenerating ? (
                     <TouchableOpacity
@@ -307,12 +302,11 @@ const ChatInput = () => {
                 <View style={styles.overlay}>
                     <View style={styles.canvasWrapper}>
                         <View
+                            style={styles.canvas}
                             ref={(ref) => {
                                 drawingRef.current = ref;
                                 canvasRef.current = ref;
                             }}
-                            onLayout={measureCanvas}
-                            style={styles.canvas}
                             {...panResponder.panHandlers}
                         >
                             <Svg height="100%" width="100%">
